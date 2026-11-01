@@ -1,3 +1,11 @@
+Unreleased - se7enxweb/expcomponents-authentication
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Renamed: The package is se7enxweb/expcomponents-authentication, Exponential's
+  maintained fork of Zeta Components Authentication. It replaces zetacomponents/authentication,
+  so packages that require zetacomponents/authentication keep working. Class names
+  (ezc*) are unchanged.
+
 1.4.1 - Thursday 11 September 2025
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

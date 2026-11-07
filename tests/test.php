@@ -31,7 +31,7 @@
  * @subpackage Tests
  * @access private
  */
-class ezcAuthenticationTest extends ezcTestCase
+abstract class ezcAuthenticationTest extends ezcTestCase
 {
     /**
      * Tests assigning an invalid value to a property.

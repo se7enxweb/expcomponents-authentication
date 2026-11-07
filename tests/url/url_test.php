@@ -116,10 +116,27 @@ class ezcAuthenticationUrlTest extends ezcAuthenticationTest
         return new PHPUnit\Framework\TestSuite( "ezcAuthenticationUrlTest" );
     }
 
+    /**
+     * PHP before 8.0 turned only the first "[" of a name without a closing "]"
+     * into "_" (parse_str() and $_GET alike); parseQueryString() follows PHP.
+     */
+    protected static $queriesParseQueryStringBeforePhp80 = array(
+        'foo[[=bar'  => array( array( 'foo_['  => 'bar' ), 'foo_[=bar' ),
+        'foo][[=bar' => array( array( 'foo]_[' => 'bar' ), 'foo]_[=bar' ),
+        'fo[[o=bar'  => array( array( 'fo_[o'  => 'bar' ), 'fo_[o=bar' ),
+        'fo][[o=bar' => array( array( 'fo]_[o' => 'bar' ), 'fo]_[o=bar' ),
+        );
+
     public function testParseQueryString()
     {
         foreach ( self::$queriesParseQueryString as $query )
         {
+            if ( PHP_VERSION_ID < 80000 && isset( self::$queriesParseQueryStringBeforePhp80[$query[0]] ) )
+            {
+                list( $query[1], $query[2] ) = self::$queriesParseQueryStringBeforePhp80[$query[0]];
+                parse_str( $query[0], $php );
+                $this->assertEquals( $php, $query[1], "PHP " . PHP_VERSION . " itself parses '{$query[0]}' that way" );
+            }
             $params = ezcAuthenticationUrl::parseQueryString( $query[0] );
 
             $this->assertEquals( $query[1], $params, "Failed parsing '{$query[0]}'" );

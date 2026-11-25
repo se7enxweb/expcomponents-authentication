@@ -1,3 +1,24 @@
+1.4.3 - Wednesday 25 November 2026
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Fixed: The LDAP filter escapes the username in the search filter, so a
+  username can no longer change the LDAP query (pull request #1).
+- Fixed: The session ID is regenerated when a user is authenticated or the
+  authenticated user changes, against session fixation; regenerateId()
+  returns whether it could regenerate (no active session or headers already
+  sent: it does nothing) (pull request #2).
+- Fixed: The htpasswd filter compares the password in constant time
+  (pull request #4).
+- Fixed: Authentication fails when no filter was added or a group of filters
+  is empty (pull request #3).
+
+  BEHAVIOUR CHANGE: ezcAuthentication::run() without any filter, and an
+  ezcAuthenticationGroupFilter without filters, used to succeed (fail open).
+  They now fail (fail closed). Code that relied on an empty filter list to
+  let every request through must add the filter it means. The Exponential
+  kernel's REST authentication always adds its filter and is not affected.
+
+
 1.4.2 - Friday 6 November 2026
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

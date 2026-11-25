@@ -248,8 +248,9 @@ class ezcAuthenticationLdapFilter extends ezcAuthenticationFilter implements ezc
         $protocol = 'ldap://'; // 'ldaps://' will be implemented later (if ever, as TLS is better)
 
         // null, false or empty string passwords are not accepted, as on some servers
-        // they could cause the LDAP binding to succeed
-        if ( empty( $credentials->password ) )
+        // they could cause the LDAP binding to succeed (unauthenticated bind).
+        // The string '0' is a valid password, so empty() must not be used here.
+        if ( $credentials->password === null || $credentials->password === false || (string) $credentials->password === '' )
         {
             return self::STATUS_PASSWORD_INCORRECT;
         }
@@ -281,7 +282,7 @@ class ezcAuthenticationLdapFilter extends ezcAuthenticationFilter implements ezc
         // bind anonymously to see if username exists in the directory
         if ( @ldap_bind( $connection ) )
         {
-            $search = @ldap_search( $connection, $this->ldap->base, str_replace( '%id%', $credentials->id, $this->ldap->format ), $this->requestedData );
+            $search = @ldap_search( $connection, $this->ldap->base, $this->buildSearchFilter( $credentials->id ), $this->requestedData );
             if ( !$search || ldap_count_entries( $connection, $search ) === 0 )
             {
                 ldap_close( $connection );
@@ -299,27 +300,7 @@ class ezcAuthenticationLdapFilter extends ezcAuthenticationFilter implements ezc
                 if ( count( $this->requestedData ) > 0 )
                 {
                     $attributes = ldap_get_attributes( $connection, $entry );
-
-                    foreach ( $this->requestedData as $attribute )
-                    {
-                        // ignore case of $attribute
-                        if ( isset( $attributes[$attribute] )
-                             || isset( $attributes[strtolower( $attribute )] )
-                           )
-                        {
-                            for ( $i = 0; $i < $attributes[$attribute]['count']; $i++ )
-                            {
-                                $this->data[$attribute][] = $attributes[$attribute][$i];
-                            }
-                        }
-
-                        // DN is a 'special' attribute and is not returned by ldap_get_attributes()
-                        if ( strtolower( $attribute ) == 'dn' )
-                        {
-                            // An entry can only have one DN
-                            $this->data[$attribute] = $entryDN;
-                        }
-                    }
+                    $this->storeFetchedData( $attributes, $entryDN );
                 }
 
                 ldap_close( $connection );
@@ -343,9 +324,92 @@ class ezcAuthenticationLdapFilter extends ezcAuthenticationFilter implements ezc
     }
 
     /**
+     * Returns the LDAP search filter for the user $id.
+     *
+     * The placeholder %id% in the format of the LDAP info structure is
+     * replaced with $id, escaped with ldap_escape() so that filter
+     * metacharacters in the username (like '*', '(', ')' or a backslash) can not
+     * change the meaning of the filter.
+     *
+     * @param string $id The username to search for
+     * @return string
+     */
+    protected function buildSearchFilter( $id )
+    {
+        return str_replace( '%id%', ldap_escape( (string) $id, '', LDAP_ESCAPE_FILTER ), $this->ldap->format );
+    }
+
+    /**
+     * Copies the requested attributes from $attributes into the fetched data.
+     *
+     * $attributes is an array as returned by ldap_get_attributes(). The case
+     * of the requested attribute names is ignored, so requesting 'objectClass'
+     * also works if the server returned only 'objectclass'. The data is
+     * stored under the attribute name as requested.
+     *
+     * @param array(string=>mixed) $attributes The attributes of the LDAP entry
+     * @param string $entryDN The DN of the LDAP entry
+     */
+    protected function storeFetchedData( array $attributes, $entryDN )
+    {
+        foreach ( $this->requestedData as $attribute )
+        {
+            // ignore case of $attribute
+            $key = null;
+            if ( isset( $attributes[$attribute] ) )
+            {
+                $key = $attribute;
+            }
+            elseif ( isset( $attributes[strtolower( $attribute )] ) )
+            {
+                $key = strtolower( $attribute );
+            }
+
+            if ( $key !== null )
+            {
+                for ( $i = 0; $i < $attributes[$key]['count']; $i++ )
+                {
+                    $this->data[$attribute][] = $attributes[$key][$i];
+                }
+            }
+
+            // DN is a 'special' attribute and is not returned by ldap_get_attributes()
+            if ( strtolower( $attribute ) == 'dn' )
+            {
+                // An entry can only have one DN
+                $this->data[$attribute] = $entryDN;
+            }
+        }
+    }
+
+    /**
+     * Returns the LDAP URI for $host and $port.
+     *
+     * If $host already is an URI (it contains a '/', like 'ldap://host' or
+     * 'ldaps://host:636'), it is returned unchanged and $port is ignored,
+     * which is how ldap_connect() treated its two arguments.
+     *
+     * @param string $host The LDAP hostname
+     * @param int $port The LDAP port to connect to $host
+     * @return string
+     */
+    protected function buildUri( $host, $port )
+    {
+        if ( strpos( (string) $host, '/' ) !== false )
+        {
+            return $host;
+        }
+
+        return 'ldap://' . $host . ':' . (int) $port;
+    }
+
+    /**
      * Wraps around the ldap_connect() function.
      *
-     * Returns the connection as a resource if it was successful.
+     * Returns the connection if it was successful.
+     *
+     * The host and port are passed to ldap_connect() as one URI, because
+     * calling ldap_connect() with two arguments is deprecated since PHP 8.3.
      *
      * @param string $host The LDAP hostname
      * @param int $port The LDAP port to connect to $host, default 389
@@ -353,7 +417,7 @@ class ezcAuthenticationLdapFilter extends ezcAuthenticationFilter implements ezc
      */
     protected function ldapConnect( $host, $port = 389 )
     {
-        return ldap_connect( $host, $port );
+        return ldap_connect( $this->buildUri( $host, $port ) );
     }
 
     /**
